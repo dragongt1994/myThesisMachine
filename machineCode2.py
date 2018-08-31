@@ -4,6 +4,9 @@ import time
 import RPi.GPIO as GPIO
 import threading
 import datetime
+import time
+d_0=33
+d_1=474
 class machine2:
     def __init__(self):
         self.ser=serial.Serial("/dev/ttyS0")
@@ -41,8 +44,8 @@ class machine2:
    #         self.lck.acquire()
             self.curr_dist=self.getDist()
     #        self.lck.release()
-            time.sleep(0.00001)
-        #    print(self.curr_dist)
+            time.sleep(0.00005)
+    #        print(self.curr_dist)
     def startRecordDistanceLoop(self,s):
         rec_thr=threading.Thread(target=self.recordDistance,args=(s,))
         rec_thr.start()
@@ -53,14 +56,17 @@ class machine2:
         print("start")
         print(str(self.curr_dist))
         self.recloop=True
-        t1=datetime.datetime.now().microsecond
+        t1=time.time()
         
         while self.recloop:
        #     self.lck.acquire()
             temp=self.curr_dist
-            print(temp)
+     #       print(temp)
         #    self.lck.release()
-            tcurr=datetime.datetime.now().microsecond-t1
+            t2=time.time()
+            td=t2-t1
+            tcurr=td
+           # print("tcurr= "+str(tcurr))
             dist_rec.write(str(temp)+','+str(tcurr)+'\n')
             #time.sleep(0.1)
         print("done")
@@ -103,7 +109,7 @@ class machine2:
    ##     print(d1)
  ##       print(d0)
         self.sp=sp
-        print(sp)
+    #    print(sp)
         return sp
     def direct(self,d):
         if d==0:
@@ -149,7 +155,7 @@ class machine2:
       #  p=(p-38)/200
         while True:
             curr1=self.getDist()
-            curr=((curr1-32)/449)*100
+            curr=((curr1-d_0)/(d_1-d_0))*100
             #print(curr)
             #print(curr)
             e=p-curr#
@@ -184,7 +190,7 @@ class machine2:
         res=0
         self.Reset(1)
         Kp=6
-        Ki=0.5
+        Ki=0.6
       #  p=(p-38)/200
         while True:
             self.lck.acquire()
@@ -196,7 +202,9 @@ class machine2:
             time.sleep(0.01)
             t2=datetime.datetime.now()
             #print(t2-t1)
+            #449
             curr=((curr1-32)/449)*100
+            #print(curr)
             self.lck.release()
      #       print(curr)
             #print(curr)
@@ -226,21 +234,42 @@ class machine2:
             elif res>100:
                 res=100
             self.setDutyCycle(int(res))
+    def shake(self,c,t,d):
+        self.Reset(1)
+        o=0
+        self.setDutyCycle(d)
+        for i in range(0,c):
+            self.direct(0)
+            time.sleep(t)
+            self.direct(1)
+            time.sleep(t)
+        self.Reset(0)
+
+    
 
     def process(self,S):
-        self.file1=open(S,'w')
-        for c in range(1,10):
-            i=c*10
+        self.file1=open('distpac/speed'+S+'.txt','w')
+        for c in range(10,99):
+            i=c
             self.setPosition3(30)
             
             self.setDutyCycle(i)
-            self.startRecordDistanceLoop('dist '+str(c)+'.txt')
+            self.startRecordDistanceLoop('distpac/dist '+str(c)+'.txt')
             p=self.checkSpeed(1)
             self.stopDistanceRecord()
+
             a=str(i)+','+str(p)+'\n'
             print(a)
             self.file1.write(a)
         self.file1.close()
+
+    def push(self,duty,t):
+        self.setDutyCycle(duty)
+
+        self.Reset(1)
+        self.direct(0)
+        time.sleep(t)
+        self.Reset(0)
 
     def PIDController(self,SP,PV,getDist):
         Kp=1
