@@ -16,9 +16,12 @@ from matplotlib.figure import Figure
 from scipy.interpolate import interp1d
 import _thread
 import datetime
-
+from queue import Queue
 from client_machine import *
 from machineCode2 import machine2
+import threading
+from messageSystem import *
+from SocketManager import *
 class Window(QtGui.QDialog):
     def __init__(self,tx, ty, trig, parent=None):
         super(Window, self).__init__(parent)
@@ -90,6 +93,9 @@ class Window(QtGui.QDialog):
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
         layout.addWidget(self.frSB)
+        
+     
+        
         self.setLayout(layout)
         
         
@@ -297,9 +303,15 @@ class Screen(QWidget):
         
         #self.item.setPosition3(int(self.posSB.value()))
         print("start")
-        _thread.start_new_thread(self.item.setPosition3,(int(self.posSB.value()),))
+        a=lambda:self.item.setPosition3(int(self.posSB.value()))
+        self.q.put(a)
+        self.q.task_done()
         print("end")
     def initUI(self):
+
+        self.q=Queue()
+        self.th=qThread(self.q)
+        self.th.start()
         
         self.item.startUpdateLoop()
         self.listWidget = QListWidget()
@@ -379,9 +391,12 @@ class Screen(QWidget):
 #        self.hbox3.addWidget(self.label2)
 #        self.hbox3.addWidget(self.frSB2)
 #        
-        
+        self.serve_start=QtGui.QPushButton("Start Server")
+        self.serve_start.clicked.connect(self.startServer)
         vbox.addLayout(self.hbox)
         vbox.addLayout(self.hbox2)
+        vbox.addWidget(self.serve_start)
+        
 #        vbox.addLayout(self.hbox2)
 #        vbox.addLayout(self.hbox3)
         
@@ -409,6 +424,11 @@ class Screen(QWidget):
         print("here3")
         self.show()
     
+    def startServer(self):
+        print("serve")
+        self.serv=ServerManager("", 9000,self.q,self.item.setPosition3);
+        self.serv.start()
+    
     def refreshList(self):
         self.listWidget.clear()
         mypath=os.getcwd()+"/pack_dat"
@@ -427,7 +447,20 @@ class Screen(QWidget):
         key = event.key()
         print(key)
 
-    
+class qThread(threading.Thread):
+    def __init__(self,q):
+        threading.Thread.__init__(self)
+        self.q=q
+        self.loop=True
+
+    def run(self):
+        print("start loop")
+        while(self.loop):
+            print("inloop")
+            temp=self.q.get(block=True,timeout=None)
+            print("here")
+            temp()
+        
 class myListWidget(QListWidget):
 
    def Clicked(self,item):
